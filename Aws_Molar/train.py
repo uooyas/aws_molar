@@ -20,7 +20,9 @@ def init_db():
     cursor.execute('''CREATE TABLE IF NOT EXISTS detections
                  (id INT AUTO_INCREMENT PRIMARY KEY,
                   timestamp DATETIME,
-                  image_path VARCHAR(255),
+                  image_name VARCHAR(255),
+                  input_image LONGBLOB,
+                  output_image LONGBLOB,
                   label VARCHAR(50),
                   confidence FLOAT,
                   bounding_box JSON,
@@ -28,13 +30,13 @@ def init_db():
     conn.commit()
     conn.close()
 
-def insert_detection(image_path, label, confidence, bounding_box, dominant_color):
+def insert_detection(image_name, input_image, output_image, label, confidence, bounding_box, dominant_color):
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
     query = """INSERT INTO detections 
-               (timestamp, image_path, label, confidence, bounding_box, dominant_color) 
-               VALUES (%s, %s, %s, %s, %s, %s)"""
-    values = (datetime.now(), image_path, label, confidence, 
+               (timestamp, image_name, input_image, output_image, label, confidence, bounding_box, dominant_color) 
+               VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"""
+    values = (datetime.now(), image_name, input_image, output_image, label, confidence, 
               json.dumps(bounding_box), json.dumps(dominant_color))
     cursor.execute(query, values)
     conn.commit()
@@ -120,9 +122,6 @@ def process_image(image_path):
             
             bounding_box = {"x": x, "y": y, "w": w, "h": h}
             
-            # Save results to DB
-            insert_detection(image_path, label, confidence, bounding_box, dominant_color.tolist())
-
             results.append({
                 "label": label,
                 "confidence": confidence,
@@ -130,9 +129,14 @@ def process_image(image_path):
                 "dominant_color": dominant_color.tolist()
             })
 
-    # Save result image
-    output_path = os.path.join(os.path.dirname(image_path), "output_image.jpg")
-    cv2.imwrite(output_path, image)
+    # Convert images to binary for DB storage
+    _, input_image_binary = cv2.imencode('.png', cv2.imread(image_path))
+    _, output_image_binary = cv2.imencode('.jpg', image)
+
+    # Save results and images to DB
+    image_name = os.path.basename(image_path)
+    insert_detection(image_name, input_image_binary.tobytes(), output_image_binary.tobytes(), 
+                     label, confidence, bounding_box, dominant_color.tolist())
 
     return results
 
@@ -140,7 +144,7 @@ def process_image(image_path):
 def get_detections():
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT * FROM detections ORDER BY timestamp DESC")
+    cursor.execute("SELECT id, timestamp, image_name, label, confidence, bounding_box, dominant_color FROM detections ORDER BY timestamp DESC")
     rows = cursor.fetchall()
     conn.close()
     
@@ -170,6 +174,6 @@ if __name__ == "__main__":
             detections = get_detections()
             print(json.dumps(detections, indent=2))
             
-            print(f"\nProcessed image saved as: {os.path.join(os.path.dirname(image_path), 'output_image.jpg')}")
+            print(f"\nInput and processed images have been stored in the database.")
         except Exception as e:
             print(f"An error occurred: {str(e)}")
