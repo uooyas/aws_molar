@@ -156,10 +156,10 @@ init_db()
 
 # Usage example
 if __name__ == "__main__":
-    image_path = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/images/image.png"
+    image_path = "path/to/your/image.jpg"
     results = process_image(image_path)
     print(json.dumps(results, indent=2))
     
-    # 데이터베이스에서 결과 조회
+    # Query results from the database
     detections = get_detections()
     print(json.dumps(detections, indent=2))
