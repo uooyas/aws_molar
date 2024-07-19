@@ -4,9 +4,9 @@ from sklearn.cluster import KMeans
 import os
 
 # YOLO 모델 파일 경로 설정
-yolo_weights = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/yolov3.weights"
-yolo_config = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/yolov3.cfg"
-coco_names = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/coco.names"
+yolo_weights = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/yolo/yolov3.weights"
+yolo_config = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/yolo/yolov3.cfg"
+coco_names = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/yolo/coco.names"
 image_path = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/images/image.png"
 
 # 파일 존재 여부 확인
