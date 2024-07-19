@@ -157,9 +157,19 @@ init_db()
 # Usage example
 if __name__ == "__main__":
     image_path = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/images/image.png"
-    results = process_image(image_path)
-    print(json.dumps(results, indent=2))
     
-    # 데이터베이스에서 결과 조회
-    detections = get_detections()
-    print(json.dumps(detections, indent=2))
+    if not os.path.exists(image_path):
+        print(f"Error: The image file does not exist at {image_path}")
+    else:
+        try:
+            results = process_image(image_path)
+            print("Image processing completed. Results:")
+            print(json.dumps(results, indent=2))
+            
+            print("\nStored detections in the database:")
+            detections = get_detections()
+            print(json.dumps(detections, indent=2))
+            
+            print(f"\nProcessed image saved as: {os.path.join(os.path.dirname(image_path), 'output_image.jpg')}")
+        except Exception as e:
+            print(f"An error occurred: {str(e)}")
