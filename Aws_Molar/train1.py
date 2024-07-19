@@ -34,12 +34,9 @@ def process_image(image_path):
     classes_path = os.path.join(yolo_dir, "coco.names")
 
     # 파일 존재 여부 확인
-    if not os.path.exists(weights_path):
-        raise FileNotFoundError(f"YOLO weights file not found: {weights_path}")
-    if not os.path.exists(cfg_path):
-        raise FileNotFoundError(f"YOLO config file not found: {cfg_path}")
-    if not os.path.exists(classes_path):
-        raise FileNotFoundError(f"YOLO classes file not found: {classes_path}")
+    for file_path in [weights_path, cfg_path, classes_path]:
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
 
     # Object detection model loading (YOLO)
     net = cv2.dnn.readNet(weights_path, cfg_path)
@@ -70,7 +67,7 @@ def process_image(image_path):
             scores = detection[5:]
             class_id = np.argmax(scores)
             confidence = scores[class_id]
-            if confidence > 0.5:
+            if confidence > 0.1:  # 신뢰도 임계값을 0.1로 낮춤
                 center_x = int(detection[0] * width)
                 center_y = int(detection[1] * height)
                 w = int(detection[2] * width)
@@ -83,7 +80,7 @@ def process_image(image_path):
                 class_ids.append(class_id)
 
     # Non-maximum suppression
-    indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
+    indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.1, 0.4)  # 신뢰도 임계값을 0.1로 낮춤
 
     # Process and save results
     font = cv2.FONT_HERSHEY_PLAIN
@@ -104,7 +101,7 @@ def process_image(image_path):
             # Extract color
             object_region_rgb = cv2.cvtColor(object_region, cv2.COLOR_BGR2RGB)
             object_region_reshaped = object_region_rgb.reshape((-1, 3))
-            kmeans = KMeans(n_clusters=1)
+            kmeans = KMeans(n_clusters=1, n_init=10)
             kmeans.fit(object_region_reshaped)
             
             # RGB values of the dominant color
@@ -125,7 +122,11 @@ def process_image(image_path):
                 "bounding_box": bounding_box,
                 "dominant_color": dominant_color.tolist()
             })
-            print(results)
+    
+    # 디버깅을 위한 출력
+    print(f"Number of objects detected: {len(results)}")
+    for result in results:
+        print(f"Label: {result['label']}, Confidence: {result['confidence']}")
 
     # Save result image
     output_path = os.path.join(os.path.dirname(image_path), "output_image.jpg")
