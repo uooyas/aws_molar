@@ -2,14 +2,16 @@ import cv2
 import numpy as np
 from sklearn.cluster import KMeans
 import os
-
-# 경로 설정
+print("Current working directory:", os.getcwd())
 BASE_DIR = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar"
 YOLO_DIR = os.path.join(BASE_DIR, "yolo")
-IMAGE_DIR = os.path.join(BASE_DIR, "images")
 
-# YOLO 모델 로드
-net = cv2.dnn.readNet(os.path.join(YOLO_DIR, "yolov3.weights"), os.path.join(YOLO_DIR, "yolov3.cfg"))
+weights_path = os.path.join(YOLO_DIR, "yolov3.weights")
+cfg_path = os.path.join(YOLO_DIR, "yolov3.cfg")
+
+net = cv2.dnn.readNet(weights_path, cfg_path)
+print(f"weights file exists: {os.path.exists(weights_path)}")
+print(f"cfg file exists: {os.path.exists(cfg_path)}")
 classes = []
 with open(os.path.join(YOLO_DIR, "coco.names"), "r") as f:
     classes = [line.strip() for line in f.readlines()]
