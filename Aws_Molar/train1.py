@@ -28,10 +28,10 @@ def insert_detection(image_path, label, confidence, bounding_box, dominant_color
 
 def process_image(image_path):
     # Object detection model loading (YOLO)
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    weights_path = os.path.join(script_dir, "yolo", "yolov3.weights")
-    cfg_path = os.path.join(script_dir, "yolo", "yolov3.cfg")
-    net = cv2.dnn.readNet(weights_path, cfg_path)
+    yolo_dir = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/yolo"
+    weights_path = os.path.join(yolo_dir, "yolov3.weights")
+    cfg_path = os.path.join(yolo_dir, "yolov3.cfg")
+    classes_path = os.path.join(yolo_dir, "coco.names")
 
     # Load class names
     classes_path = os.path.join(script_dir, "yolo", "coco.names")
@@ -115,6 +115,7 @@ def process_image(image_path):
                 "bounding_box": bounding_box,
                 "dominant_color": dominant_color.tolist()
             })
+            print(results)
 
     # Save result image
     output_path = os.path.join(os.path.dirname(image_path), "output_image.jpg")
