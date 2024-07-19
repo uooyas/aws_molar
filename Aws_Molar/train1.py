@@ -34,7 +34,7 @@ def process_image(image_path):
     classes_path = os.path.join(yolo_dir, "coco.names")
 
     # Load class names
-    classes_path = os.path.join(script_dir, "yolo", "coco.names")
+    classes_path = os.path.join(yolo_dir, "yolo", "coco.names")
     with open(classes_path, "r") as f:
         classes = [line.strip() for line in f.readlines()]
 
