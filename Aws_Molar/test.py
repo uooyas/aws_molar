@@ -3,10 +3,10 @@ import numpy as np
 from sklearn.cluster import KMeans
 import os
 
-# YOLO 모델 파일 경로 설정
-yolo_weights = "yolov3.weights"
-yolo_config = "yolov3.cfg"
-coco_names = "coco.names"
+# YOLO 모델 파일 경로 설정 (전체 경로 사용)
+yolo_weights = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/yolov3.weights"
+yolo_config = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/yolov3.cfg"
+coco_names = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/coco.names"
 
 # 파일 존재 여부 확인
 if not os.path.exists(yolo_weights):
