@@ -128,6 +128,12 @@ def process_image(image_path):
                 "bounding_box": bounding_box,
                 "dominant_color": dominant_color.tolist()
             })
+    else:
+        # No objects detected
+        label = "No object detected"
+        confidence = 0.0
+        bounding_box = {"x": 0, "y": 0, "w": 0, "h": 0}
+        dominant_color = [0, 0, 0]
 
     # Convert images to binary for DB storage
     _, input_image_binary = cv2.imencode('.png', cv2.imread(image_path))
@@ -135,28 +141,17 @@ def process_image(image_path):
 
     # Save results and images to DB
     image_name = os.path.basename(image_path)
-    insert_detection(image_name, input_image_binary.tobytes(), output_image_binary.tobytes(), 
-                     label, confidence, bounding_box, dominant_color.tolist())
+    
+    # Insert detection for each detected object or once if no object detected
+    if results:
+        for result in results:
+            insert_detection(image_name, input_image_binary.tobytes(), output_image_binary.tobytes(), 
+                             result['label'], result['confidence'], result['bounding_box'], result['dominant_color'])
+    else:
+        insert_detection(image_name, input_image_binary.tobytes(), output_image_binary.tobytes(), 
+                         label, confidence, bounding_box, dominant_color)
 
     return results
-
-# Query detection results from the database
-def get_detections():
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor(dictionary=True)
-    cursor.execute("SELECT id, timestamp, image_name, label, confidence, bounding_box, dominant_color FROM detections ORDER BY timestamp DESC")
-    rows = cursor.fetchall()
-    conn.close()
-    
-    for row in rows:
-        row['bounding_box'] = json.loads(row['bounding_box'])
-        row['dominant_color'] = json.loads(row['dominant_color'])
-        row['timestamp'] = row['timestamp'].isoformat()
-    
-    return rows
-
-# Initial setup
-init_db()
 
 # Usage example
 if __name__ == "__main__":
@@ -167,8 +162,11 @@ if __name__ == "__main__":
     else:
         try:
             results = process_image(image_path)
-            print("Image processing completed. Results:")
-            print(json.dumps(results, indent=2))
+            if results:
+                print("Image processing completed. Results:")
+                print(json.dumps(results, indent=2))
+            else:
+                print("No objects detected in the image.")
             
             print("\nStored detections in the database:")
             detections = get_detections()
