@@ -3,68 +3,70 @@ import numpy as np
 from sklearn.cluster import KMeans
 import os
 import json
-import mysql.connector
+import sqlite3
 from datetime import datetime
 
-# Updated MySQL connection settings
-db_config = {
-    'host': 'ugmni-mysql.cpe0a008coe5.ap-northeast-2.rds.amazonaws.com',
-    'user': 'admin',
-    'password': 'Aws00100!!',
-    'database': 'Refashion'
-}
+# 절대 경로 설정
+ROOT_DIR = r"C:\Users\parks\OneDrive\바탕 화면\Aws_Molar"
+YOLO_DIR = os.path.join(ROOT_DIR, "yolo")
+IMAGE_DIR = os.path.join(ROOT_DIR, "images")
+DB_FILE = os.path.join(ROOT_DIR, 'detections.db')
 
 def init_db():
-    conn = mysql.connector.connect(**db_config)
+    conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     cursor.execute('''CREATE TABLE IF NOT EXISTS detections
-                 (id INT AUTO_INCREMENT PRIMARY KEY,
-                  timestamp DATETIME,
-                  image_path VARCHAR(255),
-                  label VARCHAR(50),
-                  confidence FLOAT,
-                  bounding_box JSON,
-                  dominant_color JSON)''')
+                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                  timestamp TEXT,
+                  image_path TEXT,
+                  label TEXT,
+                  confidence REAL,
+                  bounding_box TEXT,
+                  dominant_color TEXT)''')
     conn.commit()
     conn.close()
 
 def insert_detection(image_path, label, confidence, bounding_box, dominant_color):
-    conn = mysql.connector.connect(**db_config)
+    conn = sqlite3.connect(DB_FILE)
     cursor = conn.cursor()
     query = """INSERT INTO detections 
                (timestamp, image_path, label, confidence, bounding_box, dominant_color) 
-               VALUES (%s, %s, %s, %s, %s, %s)"""
-    values = (datetime.now(), image_path, label, confidence, 
+               VALUES (?, ?, ?, ?, ?, ?)"""
+    values = (datetime.now().isoformat(), image_path, label, confidence, 
               json.dumps(bounding_box), json.dumps(dominant_color))
     cursor.execute(query, values)
     conn.commit()
     conn.close()
 
 def process_image(image_path):
-    # Object detection model loading (YOLO)
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    weights_path = os.path.join(script_dir, "yolo", "yolov3.weights")
-    cfg_path = os.path.join(script_dir, "yolo", "yolov3.cfg")
+    # 물체 탐지 모델 로드 (YOLO)
+    weights_path = os.path.join(YOLO_DIR, "yolov3.weights")
+    cfg_path = os.path.join(YOLO_DIR, "yolov3.cfg")
+    
+    print(f"Weights path: {weights_path}")
+    print(f"Config path: {cfg_path}")
+    print(f"Do files exist? Weights: {os.path.exists(weights_path)}, Config: {os.path.exists(cfg_path)}")
+    
     net = cv2.dnn.readNet(weights_path, cfg_path)
 
-    # Load class names
-    classes_path = os.path.join(script_dir, "yolo", "coco.names")
+    # 클래스 이름 로드
+    classes_path = os.path.join(YOLO_DIR, "coco.names")
     with open(classes_path, "r") as f:
         classes = [line.strip() for line in f.readlines()]
 
-    # Load image
+    # 이미지 로드
     image = cv2.imread(image_path)
     if image is None:
         raise ValueError(f"Failed to load image from {image_path}")
     height, width = image.shape[:2]
 
-    # Object detection
+    # 물체 탐지
     blob = cv2.dnn.blobFromImage(image, 1/255, (416, 416), swapRB=True, crop=False)
     net.setInput(blob)
     output_layers_names = net.getUnconnectedOutLayersNames()
     layerOutputs = net.forward(output_layers_names)
 
-    # Process detected objects
+    # 탐지된 물체 처리
     boxes = []
     confidences = []
     class_ids = []
@@ -86,10 +88,10 @@ def process_image(image_path):
                 confidences.append(float(confidence))
                 class_ids.append(class_id)
 
-    # Non-maximum suppression
+    # 노이즈 제거
     indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
 
-    # Process and save results
+    # 결과 처리 및 저장
     font = cv2.FONT_HERSHEY_PLAIN
     colors = np.random.uniform(0, 255, size=(len(classes), 3))
 
@@ -102,16 +104,16 @@ def process_image(image_path):
             confidence = float(confidences[i])
             color = colors[class_ids[i]]
             
-            # Extract object region
+            # 물체 영역 추출
             object_region = image[y:y+h, x:x+w]
             
-            # Extract color
+            # 색상 추출
             object_region_rgb = cv2.cvtColor(object_region, cv2.COLOR_BGR2RGB)
             object_region_reshaped = object_region_rgb.reshape((-1, 3))
             kmeans = KMeans(n_clusters=1)
             kmeans.fit(object_region_reshaped)
             
-            # RGB values of the dominant color
+            # 주요 색상의 RGB 값
             dominant_color = kmeans.cluster_centers_[0].astype(int)
             
             cv2.rectangle(image, (x, y), (x + w, y + h), color.tolist(), 2)
@@ -120,7 +122,7 @@ def process_image(image_path):
             
             bounding_box = {"x": x, "y": y, "w": w, "h": h}
             
-            # Save results to DB
+            # DB에 결과 저장
             insert_detection(image_path, label, confidence, bounding_box, dominant_color.tolist())
 
             results.append({
@@ -130,36 +132,35 @@ def process_image(image_path):
                 "dominant_color": dominant_color.tolist()
             })
 
-    # Save result image
-    output_path = os.path.join(os.path.dirname(image_path), "output_image.jpg")
+    # 결과 이미지 저장
+    output_path = os.path.join(os.path.dirname(image_path), "output_image.png")
     cv2.imwrite(output_path, image)
 
     return results
 
-# Query detection results from the database
+# 데이터베이스에서 탐지 결과 조회
 def get_detections():
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor(dictionary=True)
+    conn = sqlite3.connect(DB_FILE)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
     cursor.execute("SELECT * FROM detections ORDER BY timestamp DESC")
     rows = cursor.fetchall()
     conn.close()
     
-    for row in rows:
-        row['bounding_box'] = json.loads(row['bounding_box'])
-        row['dominant_color'] = json.loads(row['dominant_color'])
-        row['timestamp'] = row['timestamp'].isoformat()
-    
-    return rows
+    return [dict(row) for row in rows]
 
-# Initial setup
+# 초기 설정
 init_db()
 
-# Usage example
+# 사용 예시
 if __name__ == "__main__":
-    image_path = "path/to/your/image.jpg"
+    image_path = os.path.join(IMAGE_DIR, "image.png")
+    print(f"Image path: {image_path}")
+    print(f"Image exists: {os.path.exists(image_path)}")
+    
     results = process_image(image_path)
     print(json.dumps(results, indent=2))
     
-    # Query results from the database
+    # 데이터베이스에서 결과 조회
     detections = get_detections()
     print(json.dumps(detections, indent=2))
