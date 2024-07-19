@@ -27,14 +27,24 @@ def insert_detection(image_path, label, confidence, bounding_box, dominant_color
     conn.close()
 
 def process_image(image_path):
-    # Object detection model loading (YOLO)
+    # YOLO 모델 파일 경로 설정
     yolo_dir = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/yolo"
     weights_path = os.path.join(yolo_dir, "yolov3.weights")
     cfg_path = os.path.join(yolo_dir, "yolov3.cfg")
     classes_path = os.path.join(yolo_dir, "coco.names")
 
+    # 파일 존재 여부 확인
+    if not os.path.exists(weights_path):
+        raise FileNotFoundError(f"YOLO weights file not found: {weights_path}")
+    if not os.path.exists(cfg_path):
+        raise FileNotFoundError(f"YOLO config file not found: {cfg_path}")
+    if not os.path.exists(classes_path):
+        raise FileNotFoundError(f"YOLO classes file not found: {classes_path}")
+
+    # Object detection model loading (YOLO)
+    net = cv2.dnn.readNet(weights_path, cfg_path)
+
     # Load class names
-    classes_path = os.path.join(yolo_dir, "yolo", "coco.names")
     with open(classes_path, "r") as f:
         classes = [line.strip() for line in f.readlines()]
 
