@@ -83,7 +83,6 @@ for out in outs:
 
 indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
 
-font = cv2.FONT_HERSHEY_PLAIN
 detected_objects = []
 
 for i in range(len(boxes)):
@@ -99,10 +98,6 @@ for i in range(len(boxes)):
         dominant_color = get_dominant_color(object_region)
         color_name_text = color_name(dominant_color)
         
-        # 결과 표시
-        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-        cv2.putText(frame, f"{label}: {color_name_text}", (x, y - 5), font, 1, (0, 255, 0), 2)
-        
         # 결과 저장
         detected_objects.append({
             "object": label,
@@ -115,11 +110,13 @@ print("감지된 객체:")
 for obj in detected_objects:
     print(f"- 객체: {obj['object']}, 색상: {obj['color']}, 신뢰도: {obj['confidence']}")
 
-# 결과 표시
-cv2.imshow("Image", frame)
-cv2.waitKey(0)
-cv2.destroyAllWindows()
+# 결과 이미지 저장 (GUI 표시 없이)
+for i in range(len(boxes)):
+    if i in indexes:
+        x, y, w, h = boxes[i]
+        label = str(classes[class_ids[i]])
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        cv2.putText(frame, f"{label}: {detected_objects[i]['color']}", (x, y - 5), cv2.FONT_HERSHEY_PLAIN, 1, (0, 255, 0), 2)
 
-# 결과 이미지 저장
 cv2.imwrite("/home/ec2-user/aws_molar/aws_molar/Aws_Molar/images/result_image.png", frame)
 print("결과 이미지가 저장되었습니다: /home/ec2-user/aws_molar/aws_molar/Aws_Molar/images/result_image.png")
