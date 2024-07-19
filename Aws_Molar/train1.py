@@ -14,20 +14,6 @@ db_config = {
     'database': 'Refashion'
 }
 
-def init_db():
-    conn = mysql.connector.connect(**db_config)
-    cursor = conn.cursor()
-    cursor.execute('''CREATE TABLE IF NOT EXISTS detections
-                 (id INT AUTO_INCREMENT PRIMARY KEY,
-                  timestamp DATETIME,
-                  image_path VARCHAR(255),
-                  label VARCHAR(50),
-                  confidence FLOAT,
-                  bounding_box JSON,
-                  dominant_color JSON)''')
-    conn.commit()
-    conn.close()
-
 def insert_detection(image_path, label, confidence, bounding_box, dominant_color):
     conn = mysql.connector.connect(**db_config)
     cursor = conn.cursor()
@@ -150,9 +136,6 @@ def get_detections():
         row['timestamp'] = row['timestamp'].isoformat()
     
     return rows
-
-# Initial setup
-init_db()
 
 # Usage example
 if __name__ == "__main__":
