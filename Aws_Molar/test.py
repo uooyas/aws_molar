@@ -3,18 +3,16 @@ import numpy as np
 from sklearn.cluster import KMeans
 import os
 
-# YOLO 모델 파일 경로 설정 (전체 경로 사용)
+# YOLO 모델 파일 경로 설정
 yolo_weights = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/yolov3.weights"
 yolo_config = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/yolov3.cfg"
 coco_names = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/coco.names"
+image_path = "/home/ec2-user/aws_molar/aws_molar/Aws_Molar/images/image.png"
 
 # 파일 존재 여부 확인
-if not os.path.exists(yolo_weights):
-    raise FileNotFoundError(f"'{yolo_weights}' 파일을 찾을 수 없습니다.")
-if not os.path.exists(yolo_config):
-    raise FileNotFoundError(f"'{yolo_config}' 파일을 찾을 수 없습니다.")
-if not os.path.exists(coco_names):
-    raise FileNotFoundError(f"'{coco_names}' 파일을 찾을 수 없습니다.")
+for file_path in [yolo_weights, yolo_config, coco_names, image_path]:
+    if not os.path.exists(file_path):
+        raise FileNotFoundError(f"'{file_path}' 파일을 찾을 수 없습니다.")
 
 # YOLO 모델 로드
 net = cv2.dnn.readNet(yolo_weights, yolo_config)
@@ -24,26 +22,13 @@ with open(coco_names, "r") as f:
 layer_names = net.getLayerNames()
 output_layers = [layer_names[i - 1] for i in net.getUnconnectedOutLayers()]
 
-# 나머지 코드는 그대로 유지...
-
 def get_dominant_color(image):
-    # 이미지를 RGB로 변환
     image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-    
-    # 이미지를 2D 배열로 재구성
     pixels = image.reshape((-1, 3))
-    
-    # K-means 클러스터링 수행
     kmeans = KMeans(n_clusters=1)
     kmeans.fit(pixels)
-    
-    # 주요 색상 추출
     dominant_color = kmeans.cluster_centers_[0]
-    
-    # 색상을 정수로 변환
-    dominant_color = dominant_color.astype(int)
-    
-    return dominant_color
+    return dominant_color.astype(int)
 
 def color_name(color):
     r, g, b = color
@@ -62,72 +47,79 @@ def color_name(color):
     else:
         return "Unknown"
 
-# 카메라 초기화
-cap = cv2.VideoCapture(0)
+# 이미지 로드
+frame = cv2.imread(image_path)
+height, width, channels = frame.shape
 
-while True:
-    ret, frame = cap.read()
-    if not ret:
-        break
+# YOLO 입력 준비
+blob = cv2.dnn.blobFromImage(frame, 0.00392, (416, 416), (0, 0, 0), True, crop=False)
+net.setInput(blob)
+outs = net.forward(output_layers)
 
-    height, width, channels = frame.shape
+# 정보를 화면에 표시
+class_ids = []
+confidences = []
+boxes = []
 
-    # YOLO 입력 준비
-    blob = cv2.dnn.blobFromImage(frame, 0.00392, (416, 416), (0, 0, 0), True, crop=False)
-    net.setInput(blob)
-    outs = net.forward(output_layers)
+for out in outs:
+    for detection in out:
+        scores = detection[5:]
+        class_id = np.argmax(scores)
+        confidence = scores[class_id]
+        if confidence > 0.5:
+            # 객체 감지
+            center_x = int(detection[0] * width)
+            center_y = int(detection[1] * height)
+            w = int(detection[2] * width)
+            h = int(detection[3] * height)
 
-    # 정보를 화면에 표시
-    class_ids = []
-    confidences = []
-    boxes = []
+            # 좌표
+            x = int(center_x - w / 2)
+            y = int(center_y - h / 2)
 
-    for out in outs:
-        for detection in out:
-            scores = detection[5:]
-            class_id = np.argmax(scores)
-            confidence = scores[class_id]
-            if confidence > 0.5:
-                # 객체 감지
-                center_x = int(detection[0] * width)
-                center_y = int(detection[1] * height)
-                w = int(detection[2] * width)
-                h = int(detection[3] * height)
+            boxes.append([x, y, w, h])
+            confidences.append(float(confidence))
+            class_ids.append(class_id)
 
-                # 좌표
-                x = int(center_x - w / 2)
-                y = int(center_y - h / 2)
+indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
 
-                boxes.append([x, y, w, h])
-                confidences.append(float(confidence))
-                class_ids.append(class_id)
+font = cv2.FONT_HERSHEY_PLAIN
+detected_objects = []
 
-    indexes = cv2.dnn.NMSBoxes(boxes, confidences, 0.5, 0.4)
+for i in range(len(boxes)):
+    if i in indexes:
+        x, y, w, h = boxes[i]
+        label = str(classes[class_ids[i]])
+        confidence = confidences[i]
+        
+        # 객체 영역 추출
+        object_region = frame[y:y+h, x:x+w]
+        
+        # 주요 색상 추출
+        dominant_color = get_dominant_color(object_region)
+        color_name_text = color_name(dominant_color)
+        
+        # 결과 표시
+        cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
+        cv2.putText(frame, f"{label}: {color_name_text}", (x, y - 5), font, 1, (0, 255, 0), 2)
+        
+        # 결과 저장
+        detected_objects.append({
+            "object": label,
+            "color": color_name_text,
+            "confidence": f"{confidence:.2f}"
+        })
 
-    font = cv2.FONT_HERSHEY_PLAIN
-    for i in range(len(boxes)):
-        if i in indexes:
-            x, y, w, h = boxes[i]
-            label = str(classes[class_ids[i]])
-            
-            # 객체 영역 추출
-            object_region = frame[y:y+h, x:x+w]
-            
-            # 주요 색상 추출
-            dominant_color = get_dominant_color(object_region)
-            color_name_text = color_name(dominant_color)
-            
-            # 결과 표시
-            cv2.rectangle(frame, (x, y), (x + w, y + h), (0, 255, 0), 2)
-            cv2.putText(frame, f"{label}: {color_name_text}", (x, y - 5), font, 1, (0, 255, 0), 2)
+# 결과 출력
+print("감지된 객체:")
+for obj in detected_objects:
+    print(f"- 객체: {obj['object']}, 색상: {obj['color']}, 신뢰도: {obj['confidence']}")
 
-    # 결과 표시
-    cv2.imshow("Image", frame)
-
-    # 'q' 키를 누르면 종료
-    if cv2.waitKey(1) & 0xFF == ord('q'):
-        break
-
-# 정리
-cap.release()
+# 결과 표시
+cv2.imshow("Image", frame)
+cv2.waitKey(0)
 cv2.destroyAllWindows()
+
+# 결과 이미지 저장
+cv2.imwrite("/home/ec2-user/aws_molar/aws_molar/Aws_Molar/images/result_image.png", frame)
+print("결과 이미지가 저장되었습니다: /home/ec2-user/aws_molar/aws_molar/Aws_Molar/images/result_image.png")
